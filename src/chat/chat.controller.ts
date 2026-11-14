@@ -1,6 +1,7 @@
 import { presentDeposit } from '../deposits/deposits.controller';
 import { NairaDepositsService } from '../deposits/deposits.service';
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { FILE_TYPES, FileReaderService, MAX_FILE_BYTES } from '../agent/file-reader';
 import { z } from 'zod';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -14,7 +15,8 @@ import { ChatService } from './chat.service';
 
 const chatId = z.string().uuid();
 const renameChat = z.object({ title: z.string().trim().min(1).max(80) });
-const sendMessage = z.object({ content: z.string().trim().min(1).max(2000), conversation_id: chatId.optional(), new_chat: z.boolean().optional() });
+const sendMessage = z.object({ content: z.string().trim().min(1).max(6000), conversation_id: chatId.optional(), new_chat: z.boolean().optional() });
+const readFile = z.object({ file_name: z.string().max(200), mime_type: z.enum(FILE_TYPES), data_base64: z.string().min(1).max(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8) });
 const contactConfirmed = z.object({ contact_id: z.string().uuid(), conversation_id: chatId.optional() });
 
 @Controller('v1/chat/messages')
@@ -26,7 +28,17 @@ export class ChatController {
     private readonly contacts: ContactsService,
     private readonly schedules: SchedulesService,
     private readonly deposits: NairaDepositsService,
+    private readonly files: FileReaderService,
   ) {}
+
+  /** An invoice photo or PDF, read by Claude before it reaches the chat. Hidden text is listed apart. */
+  @Post('read-file')
+  @HttpCode(200)
+  async readFile(@CurrentUser() user: User, @Body() body: unknown) {
+    const parsed = readFile.safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Send a photo (JPG, PNG or WebP) or a PDF, up to 5 MB.');
+    return this.files.read(user.id, parsed.data.file_name, parsed.data.mime_type, Buffer.from(parsed.data.data_base64, 'base64'));
+  }
 
   private async present(user: User, message: ChatMessage) {
     const contact = message.contactId ? await this.contacts.get(user.id, message.contactId) : null;
@@ -93,7 +105,7 @@ export class ChatController {
   @Post()
   async send(@CurrentUser() user: User, @Body() body: unknown) {
     const parsed = sendMessage.safeParse(body);
-    if (!parsed.success) throw new BadRequestException('A message needs 1 to 2000 characters');
+    if (!parsed.success) throw new BadRequestException('A message needs 1 to 6000 characters');
     const saved = await this.chat.send(user, parsed.data.content, { conversationId: parsed.data.conversation_id, startNew: parsed.data.new_chat });
     return { reply: await this.present(user, saved), conversation_id: saved.conversationId };
   }

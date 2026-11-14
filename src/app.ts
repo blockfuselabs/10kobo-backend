@@ -1,6 +1,7 @@
 import cors from '@fastify/cors';
 import { ConfigService } from '@nestjs/config';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { READ_FILE_PATH } from './agent/file-reader';
 import { Env } from './config/env';
 
 // Behind a host's proxy every request looks like it comes from the proxy, unless told how many proxies to trust.
@@ -16,6 +17,10 @@ export async function configureApp(app: NestFastifyApplication): Promise<void> {
       done(null, origin !== undefined && origins.includes(origin)),
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
+  });
+  // Most requests are small; only an attached invoice may be large (a 5 MB file is about 7 MB as base64).
+  app.getHttpAdapter().getInstance().addHook('onRoute', (route) => {
+    if (route.url === READ_FILE_PATH) route.bodyLimit = 7.5 * 1024 * 1024;
   });
   app.enableShutdownHooks();
 }

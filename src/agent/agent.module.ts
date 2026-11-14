@@ -8,11 +8,12 @@ import { SchedulesModule } from '../schedules/schedules.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { AgentChatResponder } from './agent-chat-responder';
 import { AgentToolbox } from './agent-tools';
+import { FileReaderService } from './file-reader';
 import { ClaudeModelClient, ModelClient } from './model-client';
 
 @Module({
   imports: [AgentApiModule, ContactsModule, DepositsModule, PlansModule, ProvidersModule, WalletModule, SchedulesModule],
-  providers: [AgentChatResponder, AgentToolbox, { provide: ModelClient, useClass: ClaudeModelClient }],
-  exports: [AgentChatResponder],
+  providers: [AgentChatResponder, AgentToolbox, FileReaderService, { provide: ModelClient, useClass: ClaudeModelClient }],
+  exports: [AgentChatResponder, FileReaderService],
 })
 export class AgentModule {}

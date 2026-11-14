@@ -7,6 +7,8 @@ export interface ModelRequest {
   system: string;
   tools: Anthropic.Tool[];
   messages: Anthropic.MessageParam[];
+  /** Forces a tool, for answers that must come back in one shape (such as reading a file). */
+  toolChoice?: Anthropic.ToolChoice;
 }
 
 export type ModelResponse = Pick<Anthropic.Message, 'content' | 'stop_reason' | 'usage'>;
@@ -39,6 +41,7 @@ export class ClaudeModelClient extends ModelClient {
       system: request.system,
       tools: request.tools,
       messages: request.messages,
+      ...(request.toolChoice ? { tool_choice: request.toolChoice } : {}),
     });
     return response;
   }
